@@ -1,0 +1,7 @@
+[package]
+name = "combine2"
+version = "0.1.0"
+authors = ["hyone <hyone.development@gmail.com>"]
+
+[dependencies]
+combine = "2.2.0"
