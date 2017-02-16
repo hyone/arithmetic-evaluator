@@ -3,7 +3,6 @@ extern crate combine;
 use combine::*;
 use combine::char::{ Spaces, digit, spaces };
 use combine::combinator::{ Skip };
-use combine::primitives::{ Consumed };
 
 pub fn lex<'a, P>(p: P) -> Skip<P, Spaces<P::Input>>
   where P: Parser,
@@ -47,37 +46,31 @@ pub fn factor<I>(input: I) -> ParseResult<f64, I>
 pub fn term<I>(input: I) -> ParseResult<f64, I>
   where I: Stream<Item=char>
 {
-    lex(parser(factor))
-        .then(|lhs| {
-            (lex(one_of("*/".chars())), parser(term))
-                .map(move |(op, rhs)| {
-                    match op {
-                        '*' => lhs * rhs,
-                        '/' => lhs / rhs,
-                        _   => unreachable!(),
-                    }
-                })
-                .or(parser(move |i: I| Ok((lhs, Consumed::Empty(i)))))
-        })
-        .parse_stream(input)
-  }
+    let operator = lex(one_of("*/".chars()))
+        .map(|op| move |lhs, rhs| {
+            match op {
+                '*' => lhs * rhs,
+                '/' => lhs / rhs,
+                _   => unreachable!()
+            }
+        });
+
+    chainl1(lex(parser(factor)), operator).parse_stream(input)
+}
 
 pub fn expr<I>(input: I) -> ParseResult<f64, I>
   where I: Stream<Item=char>
 {
-    lex(parser(term)) 
-        .then(|lhs| {
-            (lex(one_of("+-".chars())), parser(expr))
-                .map(move |(op, rhs)| {
-                    match op {
-                        '+' => lhs + rhs,
-                        '-' => lhs - rhs,
-                        _   => unreachable!()
-                    }
-                })
-                .or(parser(move |i: I| Ok((lhs, Consumed::Empty(i)))))
-        })
-        .parse_stream(input)
+    let operator = lex(one_of("+-".chars()))
+        .map(|op| move |lhs, rhs| {
+            match op {
+                '+' => lhs + rhs,
+                '-' => lhs - rhs,
+                _   => unreachable!()
+            }
+        });
+
+    chainl1(lex(parser(term)), operator).parse_stream(input)
 }
 
 pub fn expr_parser<I>(input: I) -> ParseResult<f64, I>
@@ -143,8 +136,7 @@ mod tests {
     #[test]
     fn expr_test() {
         assert_eq!(parser(expr).parse("5+3"),  Ok((8., "")));
-        // TODO: Fix it to left association
-        // assert_eq!(parser(expr).parse("5 - 3 - 2"),  Ok((0., "")));
+        assert_eq!(parser(expr).parse("5 - 3 - 2"),  Ok((0., "")));
         assert_eq!(parser(expr).parse("5"),  Ok((5., "")));
     }
 
@@ -152,6 +144,6 @@ mod tests {
     fn expr_test2() {
         assert_eq!(parser(expr).parse("5+3 * 2"),  Ok((11., "")));
         assert_eq!(parser(expr).parse("(5+3) * 2"),  Ok((16., "")));
-        assert_eq!(parser(expr).parse("5 * (33 - 7) + 3"),  Ok((133., "")));
+        assert_eq!(parser(expr).parse("+5 * (-33 - 7) + 3"),  Ok((-197., "")));
     }
 }
