@@ -1,17 +1,27 @@
 extern crate combine;
 
 use combine::*;
-use combine::char::{ digit };
+use combine::char::{ Spaces, digit, spaces };
+use combine::combinator::{ Skip };
 use combine::primitives::{ Consumed };
 
-pub fn parens<I>(input: I) -> ParseResult<f64, I>
-  where I: Stream<Item=char> {
-    between(token('('), token(')'), parser(factor))
-        .parse_stream(input)
-  }
+pub fn lex<'a, P>(p: P) -> Skip<P, Spaces<P::Input>>
+  where P: Parser,
+        P::Input: Stream<Item=char>
+{
+    p.skip(spaces())    
+}
 
-pub fn factor<I>(input: I) -> ParseResult<f64, I>
-  where I: Stream<Item=char> {
+pub fn parens<I>(input: I) -> ParseResult<f64, I>
+  where I: Stream<Item=char>
+{
+    between(lex(token('(')), token(')'), lex(parser(expr)))
+        .parse_stream(input)
+}
+
+pub fn number<I>(input: I) -> ParseResult<f64, I>
+  where I: Stream<Item=char>
+{
     let sign = token('+').or(token('-'));
 
     let number = many1::<String, _>(digit().or(token('.')))
@@ -28,26 +38,18 @@ pub fn factor<I>(input: I) -> ParseResult<f64, I>
         .parse_stream(input)
 }
 
-// pub fn term<I>(input: I) -> ParseResult<f64, I>
-//   where I: Stream<Item=char> {
-//     try(
-//         (parser(factor), token('*').or(token('/')), parser(term))
-//         .map(|(lhs, op, rhs)| {
-//             match op {
-//                 '*' => lhs * rhs,
-//                 '/' => lhs / rhs,
-//                 _   => unreachable!(),
-//             }
-//         })
-//     ).or(parser(factor))
-//     .parse_stream(input)
-//   }
+pub fn factor<I>(input: I) -> ParseResult<f64, I>
+  where I: Stream<Item=char>
+{
+    parser(number).or(parser(parens)).parse_stream(input)
+}
 
 pub fn term<I>(input: I) -> ParseResult<f64, I>
-  where I: Stream<Item=char> {
-    parser(factor)
+  where I: Stream<Item=char>
+{
+    lex(parser(factor))
         .then(|lhs| {
-            (one_of("*/".chars()), parser(term))
+            (lex(one_of("*/".chars())), parser(term))
                 .map(move |(op, rhs)| {
                     match op {
                         '*' => lhs * rhs,
@@ -55,12 +57,34 @@ pub fn term<I>(input: I) -> ParseResult<f64, I>
                         _   => unreachable!(),
                     }
                 })
-                .or(parser(move |i: I| {
-                    Ok((lhs, Consumed::Empty(i)))
-                }))
+                .or(parser(move |i: I| Ok((lhs, Consumed::Empty(i)))))
         })
         .parse_stream(input)
   }
+
+pub fn expr<I>(input: I) -> ParseResult<f64, I>
+  where I: Stream<Item=char>
+{
+    lex(parser(term)) 
+        .then(|lhs| {
+            (lex(one_of("+-".chars())), parser(expr))
+                .map(move |(op, rhs)| {
+                    match op {
+                        '+' => lhs + rhs,
+                        '-' => lhs - rhs,
+                        _   => unreachable!()
+                    }
+                })
+                .or(parser(move |i: I| Ok((lhs, Consumed::Empty(i)))))
+        })
+        .parse_stream(input)
+}
+
+pub fn expr_parser<I>(input: I) -> ParseResult<f64, I>
+  where I: Stream<Item=char>
+{
+    optional(spaces()).with(parser(expr)).parse_stream(input)
+}
 
 fn main() {
     println!("Hello, world!");
@@ -72,24 +96,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn lex_test() {
+        assert_eq!(digit().parse("4   "), Ok(('4', "   ")));
+        assert_eq!(lex(digit()).parse("4   "), Ok(('4', "")));
+    }
+
+    #[test]
     fn parens_test() {
         assert_eq!(parser(parens).parse("(3)"), Ok((3., "")));
-        assert_eq!(parser(parens).parse("(+234.5)"), Ok((234.5, "")));
+        assert_eq!(parser(parens).parse("(234.5)"), Ok((234.5, "")));
+        assert_eq!(parser(parens).parse("( +3)"), Ok((3., "")));
+        assert_eq!(parser(parens).parse("(  234.5 + 2.0    )"), Ok((236.5, "")));
+        assert_eq!(parser(parens).parse("((234.5 + 2.0) * 2.0)"), Ok((473., "")));
     }
 
     #[test]
-    fn factor_success_test() {
-        assert_eq!(parser(factor).parse("234"),  Ok((234., "")));
-        assert_eq!(parser(factor).parse("+234"), Ok((234., "")));
-        assert_eq!(parser(factor).parse("-234.567"), Ok((-234.567, "")));
-        assert_eq!(parser(factor).parse("+.567"), Ok((0.567, "")));
-        assert_eq!(parser(factor).parse("-234."), Ok((-234., "")));
+    fn number_success_test() {
+        assert_eq!(parser(number).parse("234"),  Ok((234., "")));
+        assert_eq!(parser(number).parse("-234.567"), Ok((-234.567, "")));
+        assert_eq!(parser(number).parse(".567"), Ok((0.567, "")));
+        assert_eq!(parser(number).parse("-234."), Ok((-234., "")));
     }
 
     #[test]
-    fn factor_error_test() {
+    fn number_error_test() {
         assert_eq!(
-            parser(factor).parse(State::new("")), 
+            parser(number).parse(State::new("")), 
             Err(ParseError {
                 position: SourcePosition { line: 1, column: 1 },
                 errors: vec![
@@ -101,9 +133,25 @@ mod tests {
     }
 
     #[test]
-    fn term_success_test() {
+    fn term_test() {
         assert_eq!(parser(term).parse("5*3"),  Ok((15., "")));
-        // assert_eq!(parser(term).parse("5 * 3"),  Ok((15., "")));
-        assert_eq!(parser(term).parse("5"),  Ok((5., "")));
+        assert_eq!(parser(term).parse("6 / 3"),  Ok((2., "")));
+        assert_eq!(parser(term).parse("6  * 3/  2"),  Ok((9., "")));
+        assert_eq!(parser(term).parse("9"),  Ok((9., "")));
+    }
+
+    #[test]
+    fn expr_test() {
+        assert_eq!(parser(expr).parse("5+3"),  Ok((8., "")));
+        // TODO: Fix it to left association
+        // assert_eq!(parser(expr).parse("5 - 3 - 2"),  Ok((0., "")));
+        assert_eq!(parser(expr).parse("5"),  Ok((5., "")));
+    }
+
+    #[test]
+    fn expr_test2() {
+        assert_eq!(parser(expr).parse("5+3 * 2"),  Ok((11., "")));
+        assert_eq!(parser(expr).parse("(5+3) * 2"),  Ok((16., "")));
+        assert_eq!(parser(expr).parse("5 * (33 - 7) + 3"),  Ok((133., "")));
     }
 }
