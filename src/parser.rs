@@ -46,7 +46,7 @@ pub fn factor<I>(input: I) -> ParseResult<Expr, I>
 pub fn term<I>(input: I) -> ParseResult<Expr, I>
   where I: Stream<Item=char>
 {
-    let operator = lex(one_of("*/".chars()))
+    let operator = one_of("*/".chars())
         .map(|op| move |lhs, rhs| {
             match op {
                 '*' => Expr::Mul(Box::new(lhs), Box::new(rhs)),
@@ -55,13 +55,13 @@ pub fn term<I>(input: I) -> ParseResult<Expr, I>
             }
         });
 
-    chainl1(lex(parser(factor)), operator).parse_stream(input)
+    chainl1(lex(parser(factor)), lex(operator)).parse_stream(input)
 }
 
 pub fn expr<I>(input: I) -> ParseResult<Expr, I>
   where I: Stream<Item=char>
 {
-    let operator = lex(one_of("+-".chars()))
+    let operator = one_of("+-".chars())
         .map(|op| move |lhs, rhs| {
             match op {
                 '+' => Expr::Add(Box::new(lhs), Box::new(rhs)),
@@ -70,7 +70,7 @@ pub fn expr<I>(input: I) -> ParseResult<Expr, I>
             }
         });
 
-    chainl1(lex(parser(term)), operator).parse_stream(input)
+    chainl1(lex(parser(term)), lex(operator)).parse_stream(input)
 }
 
 
