@@ -17,7 +17,7 @@ use parser::expr_parser;
 
 const USAGE: &'static str = "
 Usage:
-  arithmetic [options]
+  arithmetic-evaluator [options]
  
 Options:
   -e TEXT      Specify expression to be evaludated
