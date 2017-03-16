@@ -1,10 +1,12 @@
 extern crate combine;
-extern crate rustc_serialize;
 extern crate docopt;
+extern crate num;
+extern crate rustc_serialize;
 
 mod eval;
 mod parser;
 mod types;
+mod utils;
 
 use combine::Parser;
 use docopt::Docopt;
@@ -48,7 +50,7 @@ fn main() {
 
     match expr_parser().parse(input.as_str()) {
         Ok((expr, _)) => {
-            println!("{} = {}", expr, eval(&expr));
+            println!("{} = {}", format!("{}", expr), eval(expr));
             process::exit(0);
         },
         Err(err) => {

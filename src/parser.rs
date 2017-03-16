@@ -1,6 +1,8 @@
 use combine::*;
 use combine::char::{ Spaces, digit, spaces };
 use combine::combinator::{ FnParser, Skip };
+use num::rational::Ratio;
+use std::str::FromStr;
 use types::*;
 
 pub fn lex<'a, P>(p: P) -> Skip<P, Spaces<P::Input>>
@@ -23,8 +25,8 @@ pub fn number<I>(input: I) -> ParseResult<Expr, I>
 {
     let sign = token('+').or(token('-'));
 
-    let number = many1::<String, _>(digit().or(token('.')))
-        .and_then(|digits| digits.parse::<f64>());
+    let number = many1::<String, _>(digit().or(token('/')))
+        .and_then(|digits| Ratio::from_str(digits.as_str()));
 
     (optional(sign), number)
         .map(|(prefix, num)| {
@@ -91,6 +93,7 @@ mod tests {
     use combine::*;
     use combine::primitives::{ Error, Info, ParseError, SourcePosition };
     use types::Expr::*;
+    use utils::*;
     use super::*;
 
     #[test]
@@ -102,21 +105,21 @@ mod tests {
     #[test]
     fn parens_test() {
         assert_eq!(parser(parens).parse("(3)"),
-                   Ok((Paren(Box::new(Num(3.))), "")));
-        assert_eq!(parser(parens).parse("( +234.5  )"),
-                   Ok((Paren(Box::new(Num(234.5))), "")));
+                   Ok((Paren(Box::new(Num(to_r("3")))), "")));
+        assert_eq!(parser(parens).parse("( +234/5  )"),
+                   Ok((Paren(Box::new(Num(to_r("234/5")))), "")));
     }
 
     #[test]
     fn number_test() {
         assert_eq!(parser(number).parse("234"),
-                   Ok((Num(234.), "")));
-        assert_eq!(parser(number).parse("-234.567"),
-                   Ok((Num(-234.567), "")));
-        assert_eq!(parser(number).parse(".567"),
-                   Ok((Num(0.567), "")));
-        assert_eq!(parser(number).parse("-234."),
-                   Ok((Num(-234.), "")));
+                   Ok((Num(to_r("234")), "")));
+        assert_eq!(parser(number).parse("-234/567"),
+                   Ok((Num(to_r("-234/567")), "")));
+        assert_eq!(parser(number).parse("1/567"),
+                   Ok((Num(to_r("1/567")), "")));
+        assert_eq!(parser(number).parse("-234"),
+                   Ok((Num(to_r("-234")), "")));
     }
 
     #[test]
@@ -124,62 +127,70 @@ mod tests {
         assert_eq!(
             parser(number).parse(State::new("")),
             Err(ParseError {
-                position: SourcePosition { line: 1, column: 1 },
-                errors: vec![
-                    Error::Unexpected(Info::Borrowed("end of input")),
-                    Error::Expected(Info::Borrowed("digit")),
-                    Error::Expected(Info::Token('.'))
-                ] })
+                    position: SourcePosition { line: 1, column: 1 },
+                    errors: vec![
+                        Error::Unexpected(Info::Borrowed("end of input")),
+                        Error::Expected(Info::Borrowed("digit")),
+                        Error::Expected(Info::Token('/'))
+                    ]
+            })
         )
     }
 
     #[test]
     fn term_test() {
         assert_eq!(parser(term).parse("5*3"),
-                   Ok((Mul(Box::new(Num(5.)), Box::new(Num(3.))), "")));
+                   Ok((Mul(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3")))), "")));
         assert_eq!(parser(term).parse("6 / 3"), 
-                   Ok((Div(Box::new(Num(6.)), Box::new(Num(3.))), "")));
-        assert_eq!(parser(term).parse("6  * 3/  2"),
-                   Ok((Div(Box::new(Mul(Box::new(Num(6.)), Box::new(Num(3.)))),
-                           Box::new(Num(2.))), "")));
-        assert_eq!(parser(term).parse("9"),  Ok((Num(9.), "")));
+                   Ok((Div(Box::new(Num(to_r("6"))), Box::new(Num(to_r("3")))), "")));
+        assert_eq!(parser(term).parse("6  *3 /  2"),
+                   Ok((Div(Box::new(Mul(Box::new(Num(to_r("6"))), Box::new(Num(to_r("3"))))),
+                           Box::new(Num(to_r("2")))), "")));
+        assert_eq!(parser(term).parse("9"),  Ok((Num(to_r("9")), "")));
+    }
+
+    #[test]
+    #[should_panic]
+    fn term_error_test() {
+        assert_eq!(parser(term).parse("3/ 2"),
+                   Ok((Div(Box::new(Num(to_r("3"))), Box::new(Num(to_r("2")))), "")));
     }
 
     #[test]
     fn expr_test() {
         assert_eq!(parser(expr).parse("5+3"),
-                   Ok((Add(Box::new(Num(5.)), Box::new(Num(3.))), "")));
+                   Ok((Add(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3")))), "")));
         assert_eq!(parser(expr).parse("5 - 3 - 2"),
-                   Ok((Sub(Box::new(Sub(Box::new(Num(5.)), Box::new(Num(3.)))),
-                           Box::new(Num(2.))), "")));
-        assert_eq!(parser(expr).parse("5"),  Ok((Num(5.), "")));
+                   Ok((Sub(Box::new(Sub(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3"))))),
+                           Box::new(Num(to_r("2")))), "")));
+        assert_eq!(parser(expr).parse("5"),  Ok((Num(to_r("5")), "")));
     }
 
     #[test]
     fn expr_complex_test() {
         assert_eq!(parser(expr).parse("5+3 * 2"),
-                   Ok((Add(Box::new(Num(5.)),
-                           Box::new(Mul(Box::new(Num(3.)), Box::new(Num(2.))))), "")));
+                   Ok((Add(Box::new(Num(to_r("5"))),
+                           Box::new(Mul(Box::new(Num(to_r("3"))), Box::new(Num(to_r("2")))))), "")));
         assert_eq!(parser(expr).parse("(5+3) * 2"),
                    Ok((Mul(Box::new(Paren(
-                               Box::new(Add(Box::new(Num(5.)), Box::new(Num(3.))))
+                               Box::new(Add(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3")))))
                            )),
-                           Box::new(Num(2.))), "")));
+                           Box::new(Num(to_r("2")))), "")));
         assert_eq!(parser(expr).parse("+5 * (-33 - 7) + 3"),
                    Ok((Add(Box::new(Mul(
-                              Box::new(Num(5.)),
+                              Box::new(Num(to_r("5"))),
                               Box::new(Paren(
-                                  Box::new(Sub(Box::new(Num(-33.)), Box::new(Num(7.))))
+                                  Box::new(Sub(Box::new(Num(to_r("-33"))), Box::new(Num(to_r("7")))))
                               ))
                            )),
-                           Box::new(Num(3.))), "")));
-        assert_eq!(parser(parens).parse("((234.5 + 2.0) * 2.0)"),
+                           Box::new(Num(to_r("3")))), "")));
+        assert_eq!(parser(parens).parse("((234/5 + 2) * -2/3)"),
                    Ok((Paren(Box::new(Mul(
                        Box::new(Paren(Box::new(Add(
-                           Box::new(Num(234.5)),
-                           Box::new(Num(2.0))
+                           Box::new(Num(to_r("234/5"))),
+                           Box::new(Num(to_r("2")))
                        )))),
-                       Box::new(Num(2.0))
+                       Box::new(Num(to_r("-2/3")))
                    ))), "")));
     }
 }

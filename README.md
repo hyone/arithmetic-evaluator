@@ -13,10 +13,10 @@ $ ./arithmetic-evaluator -e " 6 * 18 / 9 - 2"
 
 $ ./arithmetic-evaluator
 3 + (
-5*(3-
-6))
+7/3 *(3-
+6/11))
 # input end here
-3 + (5 * (3 - 6)) = -12
+3 + (7/3 * (3 - 6/11)) = 96/11
 ```
 
 ## Options:
