@@ -15,7 +15,7 @@ use std::io::prelude::*;
 use std::process;
 use std::str;
 use eval::eval;
-use parser::expr_parser;
+use parser::Arithmetic;
 
 const USAGE: &'static str = "
 Usage:
@@ -48,7 +48,7 @@ fn main() {
             text
         };
 
-    match expr_parser().parse(input.as_str()) {
+    match Arithmetic::expr_parser().parse(input.as_str()) {
         Ok((expr, _)) => {
             println!("{} = {}", format!("{}", expr), eval(expr));
             process::exit(0);
