@@ -22,16 +22,16 @@ impl <I> Arithmetic<I>
     where I: Stream<Item=char>
 {
     fn parens() -> ArithmeticParser<I> {
-        parser(Arithmetic::<I>::parens_)
+        parser(Arithmetic::parens_)
     }
     fn parens_(input: I) -> ArithmeticParseResult<I> {
-        between(lex(token('(')), token(')'), lex(Arithmetic::<I>::expr()))
+        between(lex(token('(')), token(')'), lex(Arithmetic::expr()))
             .map(|e| Expr::Paren(Box::new(e)))
             .parse_stream(input)
     }
 
     fn number() -> ArithmeticParser<I> {
-        parser(Arithmetic::<I>::number_)
+        parser(Arithmetic::number_)
     }
     fn number_(input: I) -> ArithmeticParseResult<I> {
         let sign = token('+').or(token('-'));
@@ -51,16 +51,16 @@ impl <I> Arithmetic<I>
     }
 
     fn factor() -> ArithmeticParser<I> {
-        parser(Arithmetic::<I>::factor_)
+        parser(Arithmetic::factor_)
     }
     fn factor_(input: I) -> ArithmeticParseResult<I> {
-        Arithmetic::<I>::number()
-            .or(Arithmetic::<I>::parens())
+        Arithmetic::number()
+            .or(Arithmetic::parens())
             .parse_stream(input)
     }
 
     fn term() -> ArithmeticParser<I> {
-        parser(Arithmetic::<I>::term_)
+        parser(Arithmetic::term_)
     }
     fn term_(input: I) -> ArithmeticParseResult<I> {
         let operator = one_of("*/".chars())
@@ -76,7 +76,7 @@ impl <I> Arithmetic<I>
     }
 
     fn expr() -> ArithmeticParser<I> {
-        parser(Arithmetic::<I>::expr_)
+        parser(Arithmetic::expr_)
     }
     fn expr_(input: I) -> ArithmeticParseResult<I> {
         let operator = one_of("+-".chars())
@@ -88,14 +88,14 @@ impl <I> Arithmetic<I>
                 }
             });
 
-        chainl1(lex(Arithmetic::<I>::term()), lex(operator)).parse_stream(input)
+        chainl1(lex(Arithmetic::term()), lex(operator)).parse_stream(input)
     }
 
     pub fn parser() -> ArithmeticParser<I> {
-        parser(Arithmetic::<I>::parser_)
+        parser(Arithmetic::parser_)
     }
     fn parser_(input: I) -> ArithmeticParseResult<I> {
-        optional(spaces()).with(Arithmetic::<I>::expr()).parse_stream(input)
+        optional(spaces()).with(Arithmetic::expr()).parse_stream(input)
     }
 }
 
