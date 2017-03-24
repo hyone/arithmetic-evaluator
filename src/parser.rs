@@ -8,6 +8,9 @@ use types::*;
 
 pub struct Arithmetic<I>(PhantomData<Fn(I) -> I>);
 
+type ArithmeticParseResult<I> = ParseResult<Expr, I>;
+type ArithmeticParser<I> = FnParser<I, fn(I) -> ArithmeticParseResult<I>>;
+
 fn lex<'a, P>(p: P) -> Skip<P, Spaces<P::Input>>
     where P: Parser,
           P::Input: Stream<Item=char>
@@ -18,13 +21,19 @@ fn lex<'a, P>(p: P) -> Skip<P, Spaces<P::Input>>
 impl <I> Arithmetic<I>
     where I: Stream<Item=char>
 {
-    fn parens(input: I) -> ParseResult<Expr, I> {
-        between(lex(token('(')), token(')'), lex(parser(Arithmetic::<I>::expr)))
+    fn parens() -> ArithmeticParser<I> {
+        parser(Arithmetic::<I>::parens_)
+    }
+    fn parens_(input: I) -> ArithmeticParseResult<I> {
+        between(lex(token('(')), token(')'), lex(Arithmetic::<I>::expr()))
             .map(|e| Expr::Paren(Box::new(e)))
             .parse_stream(input)
     }
 
-    fn number(input: I) -> ParseResult<Expr, I> {
+    fn number() -> ArithmeticParser<I> {
+        parser(Arithmetic::<I>::number_)
+    }
+    fn number_(input: I) -> ArithmeticParseResult<I> {
         let sign = token('+').or(token('-'));
 
         let number = many1::<String, _>(digit().or(token('/')))
@@ -41,13 +50,19 @@ impl <I> Arithmetic<I>
         .parse_stream(input)
     }
 
-    pub fn factor(input: I) -> ParseResult<Expr, I> {
-        parser(Arithmetic::<I>::number)
-            .or(parser(Arithmetic::<I>::parens))
+    fn factor() -> ArithmeticParser<I> {
+        parser(Arithmetic::<I>::factor_)
+    }
+    fn factor_(input: I) -> ArithmeticParseResult<I> {
+        Arithmetic::<I>::number()
+            .or(Arithmetic::<I>::parens())
             .parse_stream(input)
     }
 
-    pub fn term(input: I) -> ParseResult<Expr, I> {
+    fn term() -> ArithmeticParser<I> {
+        parser(Arithmetic::<I>::term_)
+    }
+    fn term_(input: I) -> ArithmeticParseResult<I> {
         let operator = one_of("*/".chars())
             .map(|op| move |lhs, rhs| {
                 match op {
@@ -57,10 +72,13 @@ impl <I> Arithmetic<I>
                 }
             });
 
-        chainl1(lex(parser(Arithmetic::<I>::factor)), lex(operator)).parse_stream(input)
+        chainl1(lex(Arithmetic::factor()), lex(operator)).parse_stream(input)
     }
 
-    pub fn expr(input: I) -> ParseResult<Expr, I> {
+    fn expr() -> ArithmeticParser<I> {
+        parser(Arithmetic::<I>::expr_)
+    }
+    fn expr_(input: I) -> ArithmeticParseResult<I> {
         let operator = one_of("+-".chars())
             .map(|op| move |lhs, rhs| {
                 match op {
@@ -70,15 +88,14 @@ impl <I> Arithmetic<I>
                 }
             });
 
-        chainl1(lex(parser(Arithmetic::<I>::term)), lex(operator)).parse_stream(input)
+        chainl1(lex(Arithmetic::<I>::term()), lex(operator)).parse_stream(input)
     }
 
-    fn expr_parser_(input: I) -> ParseResult<Expr, I> {
-        optional(spaces()).with(parser(Arithmetic::<I>::expr)).parse_stream(input)
+    pub fn parser() -> ArithmeticParser<I> {
+        parser(Arithmetic::<I>::parser_)
     }
-
-    pub fn expr_parser() -> FnParser<I, fn(I) -> ParseResult<Expr, I>> {
-        parser(Arithmetic::<I>::expr_parser_)
+    fn parser_(input: I) -> ArithmeticParseResult<I> {
+        optional(spaces()).with(Arithmetic::<I>::expr()).parse_stream(input)
     }
 }
 
@@ -98,28 +115,28 @@ mod tests {
 
     #[test]
     fn parens_test() {
-        assert_eq!(parser(Arithmetic::parens).parse("(3)"),
+        assert_eq!(Arithmetic::parens().parse("(3)"),
                    Ok((Paren(Box::new(Num(to_r("3")))), "")));
-        assert_eq!(parser(Arithmetic::parens).parse("( +234/5  )"),
+        assert_eq!(Arithmetic::parens().parse("( +234/5  )"),
                    Ok((Paren(Box::new(Num(to_r("234/5")))), "")));
     }
 
     #[test]
     fn number_test() {
-        assert_eq!(parser(Arithmetic::number).parse("234"),
+        assert_eq!(Arithmetic::number().parse("234"),
                    Ok((Num(to_r("234")), "")));
-        assert_eq!(parser(Arithmetic::number).parse("-234/567"),
+        assert_eq!(Arithmetic::number().parse("-234/567"),
                    Ok((Num(to_r("-234/567")), "")));
-        assert_eq!(parser(Arithmetic::number).parse("1/567"),
+        assert_eq!(Arithmetic::number().parse("1/567"),
                    Ok((Num(to_r("1/567")), "")));
-        assert_eq!(parser(Arithmetic::number).parse("-234"),
+        assert_eq!(Arithmetic::number().parse("-234"),
                    Ok((Num(to_r("-234")), "")));
     }
 
     #[test]
     fn number_error_test() {
         assert_eq!(
-            parser(Arithmetic::number).parse(State::new("")),
+            Arithmetic::number().parse(State::new("")),
             Err(ParseError {
                     position: SourcePosition { line: 1, column: 1 },
                     errors: vec![
@@ -133,44 +150,44 @@ mod tests {
 
     #[test]
     fn term_test() {
-        assert_eq!(parser(Arithmetic::term).parse("5*3"),
+        assert_eq!(Arithmetic::term().parse("5*3"),
                    Ok((Mul(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3")))), "")));
-        assert_eq!(parser(Arithmetic::term).parse("6 / 3"), 
+        assert_eq!(Arithmetic::term().parse("6 / 3"), 
                    Ok((Div(Box::new(Num(to_r("6"))), Box::new(Num(to_r("3")))), "")));
-        assert_eq!(parser(Arithmetic::term).parse("6  *3 /  2"),
+        assert_eq!(Arithmetic::term().parse("6  *3 /  2"),
                    Ok((Div(Box::new(Mul(Box::new(Num(to_r("6"))), Box::new(Num(to_r("3"))))),
                            Box::new(Num(to_r("2")))), "")));
-        assert_eq!(parser(Arithmetic::term).parse("9"),  Ok((Num(to_r("9")), "")));
+        assert_eq!(Arithmetic::term().parse("9"),  Ok((Num(to_r("9")), "")));
     }
 
     #[test]
     #[should_panic]
     fn term_error_test() {
-        assert_eq!(parser(Arithmetic::term).parse("3/ 2"),
+        assert_eq!(Arithmetic::term().parse("3/ 2"),
                    Ok((Div(Box::new(Num(to_r("3"))), Box::new(Num(to_r("2")))), "")));
     }
 
     #[test]
     fn expr_test() {
-        assert_eq!(parser(Arithmetic::expr).parse("5+3"),
+        assert_eq!(Arithmetic::expr().parse("5+3"),
                    Ok((Add(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3")))), "")));
-        assert_eq!(parser(Arithmetic::expr).parse("5 - 3 - 2"),
+        assert_eq!(Arithmetic::expr().parse("5 - 3 - 2"),
                    Ok((Sub(Box::new(Sub(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3"))))),
                            Box::new(Num(to_r("2")))), "")));
-        assert_eq!(parser(Arithmetic::expr).parse("5"),  Ok((Num(to_r("5")), "")));
+        assert_eq!(Arithmetic::expr().parse("5"),  Ok((Num(to_r("5")), "")));
     }
 
     #[test]
     fn expr_complex_test() {
-        assert_eq!(parser(Arithmetic::expr).parse("5+3 * 2"),
+        assert_eq!(Arithmetic::expr().parse("5+3 * 2"),
                    Ok((Add(Box::new(Num(to_r("5"))),
                            Box::new(Mul(Box::new(Num(to_r("3"))), Box::new(Num(to_r("2")))))), "")));
-        assert_eq!(parser(Arithmetic::expr).parse("(5+3) * 2"),
+        assert_eq!(Arithmetic::expr().parse("(5+3) * 2"),
                    Ok((Mul(Box::new(Paren(
                                Box::new(Add(Box::new(Num(to_r("5"))), Box::new(Num(to_r("3")))))
                            )),
                            Box::new(Num(to_r("2")))), "")));
-        assert_eq!(parser(Arithmetic::expr).parse("+5 * (-33 - 7) + 3"),
+        assert_eq!(Arithmetic::expr().parse("+5 * (-33 - 7) + 3"),
                    Ok((Add(Box::new(Mul(
                               Box::new(Num(to_r("5"))),
                               Box::new(Paren(
@@ -178,7 +195,7 @@ mod tests {
                               ))
                            )),
                            Box::new(Num(to_r("3")))), "")));
-        assert_eq!(parser(Arithmetic::parens).parse("((234/5 + 2) * -2/3)"),
+        assert_eq!(Arithmetic::parens().parse("((234/5 + 2) * -2/3)"),
                    Ok((Paren(Box::new(Mul(
                        Box::new(Paren(Box::new(Add(
                            Box::new(Num(to_r("234/5"))),

@@ -48,7 +48,7 @@ fn main() {
             text
         };
 
-    match Arithmetic::expr_parser().parse(input.as_str()) {
+    match Arithmetic::parser().parse(input.as_str()) {
         Ok((expr, _)) => {
             println!("{} = {}", format!("{}", expr), eval(expr));
             process::exit(0);
