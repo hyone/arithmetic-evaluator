@@ -2,6 +2,8 @@
 
 command that parses and evaluates simple arithmetic text for learning [combine](https://github.com/Marwes/combine) parser combinator library.
 
+[![Build Status](https://travis-ci.org/hyone/arithmetic-evaluator.svg?branch=master)](https://travis-ci.org/hyone/arithmetic-evaluator)
+
 ## Usage
 
     Usage:
