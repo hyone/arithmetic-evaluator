@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["hyone <hyone.development@gmail.com>"]
 
 [dependencies]
-combine = "2.2.0"
+combine = "3.8.1"
 docopt  = "0.7.0"
 num = "0.1"
 rustc-serialize = "0.3"

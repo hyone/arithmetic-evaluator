@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate combine;
 extern crate docopt;
 extern crate num;
@@ -15,7 +16,7 @@ use std::io::prelude::*;
 use std::process;
 use std::str;
 use eval::eval;
-use parser::Arithmetic;
+use parser::parser;
 
 const USAGE: &'static str = "
 Usage:
@@ -48,7 +49,7 @@ fn main() {
             text
         };
 
-    match Arithmetic::parser().parse(input.as_str()) {
+    match parser().parse(input.as_str()) {
         Ok((expr, _)) => {
             println!("{} = {}", format!("{}", expr), eval(expr));
             process::exit(0);
@@ -57,5 +58,5 @@ fn main() {
             println!("Error: {}", err);
             process::exit(1)
         }
-    }
+    };
 }
