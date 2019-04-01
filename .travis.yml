@@ -28,7 +28,7 @@ script:
   cargo build &&
   cargo test &&
   cargo bench &&
-  cargo doc
+  cargo doc --no-deps
 after_success:
 - if [ "$TRAVIS_OS_NAME" == "linux" ] && [ "$TRAVIS_RUST_VERSION" == "stable" ]; then
     cargo doc-upload;
