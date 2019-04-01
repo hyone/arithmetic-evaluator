@@ -3,6 +3,15 @@ name = "arithmetic-evaluator"
 version = "0.1.0"
 authors = ["hyone <hyone.development@gmail.com>"]
 
+[[bin]]
+name = "arithmetic-evaluator"
+path = "src/main.rs"
+doc = false
+
+[lib]
+name = "arithmetic_evaluator"
+path = "src/lib.rs"
+
 [dependencies]
 combine = "3.8.1"
 docopt  = "0.7.0"
