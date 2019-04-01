@@ -1,5 +1,5 @@
 language: rust
-sudo: false
+sudo: required
 addons:
   apt:
     packages:
@@ -7,6 +7,9 @@ addons:
     - libelf-dev
     - libdw-dev
     - binutils-dev
+    - cmake # also required for cargo-update
+    sources:
+    - kalakris-cmake
 cache: cargo
 os:
 - linux
@@ -16,21 +19,22 @@ rust:
 - beta
 - nightly
 before_script:
-- pip install 'travis-cargo<0.2' --user
-- if [[ -e ~/Library/Python/2.7/bin ]]; then export PATH=~/Library/Python/2.7/bin:$PATH;
-  fi
-- if [[ -e ~/.local/bin ]]; then export PATH=~/.local/bin:$PATH; fi
-- export RUST_BACKTRACE=1
+- export PATH=$HOME/.cargo/bin:$PATH
+- cargo install cargo-update || echo "cargo-update already installed"
+- cargo install cargo-travis || echo "cargo-travis already installed"
+- cargo install-update -a # update outdated cached binaries
 script:
 - |
-  travis-cargo build &&
-  travis-cargo test &&
-  travis-cargo bench &&
-  travis-cargo --only stable doc
+  cargo build &&
+  cargo test &&
+  cargo bench &&
+  cargo doc
 after_success:
-- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then travis-cargo --only stable doc-upload;
+- if [ "$TRAVIS_OS_NAME" == "linux" ] && [ "$TRAVIS_RUST_VERSION" == "stable" ]; then
+    cargo doc-upload;
   fi
-- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then travis-cargo coveralls --no-sudo --verify;
+- if [ "$TRAVIS_OS_NAME" == "linux" ] && [ "$TRAVIS_RUST_VERSION" == "stable" ]; then
+    cargo coveralls;
   fi
 env:
   global:
