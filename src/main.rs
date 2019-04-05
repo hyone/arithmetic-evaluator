@@ -2,7 +2,8 @@
 extern crate combine;
 extern crate docopt;
 extern crate num;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
 
 mod eval;
 mod parser;
@@ -29,7 +30,7 @@ Options:
 Parse and evaluate simple arithmetic text.
 ";
 
-#[derive(Debug, RustcDecodable)]
+#[derive(Debug, Deserialize)]
 struct Args {
     flag_e: Option<String>,
     arg_file: Vec<String>,
@@ -37,7 +38,7 @@ struct Args {
 
 fn main() {
     let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.decode())
+        .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
 
     let input: String =
