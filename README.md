@@ -1,6 +1,6 @@
 # arithmetic-evaluator
 
-command that parses and evaluates simple arithmetic text for learning [combine](https://github.com/Marwes/combine) parser combinator library.
+command that parses and evaluates simple arithmetic expression, which is created for learning [combine](https://github.com/Marwes/combine) parser combinator library.
 
 [![Build Status](https://travis-ci.org/hyone/arithmetic-evaluator.svg?branch=master)](https://travis-ci.org/hyone/arithmetic-evaluator)
 [![Build status](https://ci.appveyor.com/api/projects/status/s40xd5r0d2n31epr/branch/master?svg=true)](https://ci.appveyor.com/project/hyone/arithmetic-evaluator/branch/master)
